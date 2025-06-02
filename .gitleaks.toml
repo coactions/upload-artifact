@@ -1,0 +1,5 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+paths = ['dist/upload/index.js$', 'dist/merge/index.js$', 'README.md$']

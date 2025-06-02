@@ -1,0 +1,42 @@
+---
+ci:
+  # format compatible with commitlint
+  autoupdate_commit_msg: "chore: pre-commit autoupdate"
+  autoupdate_schedule: monthly
+  autofix_commit_msg: |
+    chore: auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  skip:
+    - eslint
+repos:
+  - repo: meta
+    hooks:
+      - id: check-useless-excludes
+  - repo: https://github.com/pycontribs/mirrors-prettier
+    # keep it before markdownlint and eslint
+    rev: "v3.5.3"
+    hooks:
+      - id: prettier
+        always_run: true
+        pass_filenames: false
+        additional_dependencies:
+          - prettier@3.2.4
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: npm
+        language: system
+        args:
+          - exec
+          - --
+          - eslint
+          - --color
+          - --fix
+          - --cache
+          - --max-warnings
+          - "0"
+        pass_filenames: false
+        files: \.m?[jt]sx?$ # *.js, *.jsx, *.ts and *.tsx
+        types: [file]

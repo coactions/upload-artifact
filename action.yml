@@ -1,6 +1,6 @@
-name: 'Upload a Build Artifact'
-description: 'Upload a build artifact that can be used by subsequent workflow steps'
-author: 'GitHub'
+name: 'Upload a Build Artifact (secured)'
+description: 'Upload a build artifact if gitleaks secure scan is passing.'
+author: 'Sorin Sbarnea'
 inputs:
   name:
     description: 'Artifact name'
@@ -56,8 +56,8 @@ outputs:
     description: >
       A download URL for the artifact that was just uploaded. Empty if the artifact upload failed.
 
-      This download URL only works for requests Authenticated with GitHub. Anonymous downloads will be prompted to first login. 
-      If an anonymous download URL is needed than a short time restricted URL can be generated using the download artifact API: https://docs.github.com/en/rest/actions/artifacts#download-an-artifact    
+      This download URL only works for requests Authenticated with GitHub. Anonymous downloads will be prompted to first login.
+      If an anonymous download URL is needed than a short time restricted URL can be generated using the download artifact API: https://docs.github.com/en/rest/actions/artifacts#download-an-artifact
 
       This URL will be valid for as long as the artifact exists and the workflow run and repository exists. Once an artifact has expired this URL will no longer work.
       Common uses cases for such a download URL can be adding download links to artifacts in descriptions or comments on pull requests or issues.
@@ -65,5 +65,76 @@ outputs:
     description: >
       SHA-256 digest for the artifact that was just uploaded. Empty if the artifact upload failed.
 runs:
-  using: 'node20'
-  main: 'dist/upload/index.js'
+  using: "composite"
+  steps:
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install gitleaks (macos)
+      if: runner.os == 'macOS'
+      run: command -v gitleaks 2>&1 >/dev/null || brew install gitleaks
+      shell: bash
+
+    - name: Install gitleaks (windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install gitleaks -y
+        gitleaks --version
+      shell: cmd
+
+    - name: Install gitleaks (linux)
+      if: runner.os == 'Linux'
+      run: |
+        curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.27.0/gitleaks_8.27.0_linux_x64.tar.gz | tar -xz
+        sudo mv gitleaks /usr/local/bin/
+        gitleaks --version
+      shell: bash
+
+    - name: Secrets Scanning
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const {spawnSync} = require('child_process')
+          const rawInput = process.env.INPUT_PATH || process.cwd()
+          const inputPaths = rawInput
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+          const cwd = process.cwd()
+          const result = spawnSync('gitleaks', ['dir', '--report-format=json', `--report-path=${cwd}/gitleaks.json`, '--redact=100', '--no-banner', ...inputPaths], {
+            stdio: 'inherit',
+            encoding: 'utf-8'
+          })
+
+          if (result.error) {
+            console.error('Failed to run gitleaks:', result.error.message)
+            process.exit(1)
+          }
+          if (result.status == 1) {
+            const data = require('./gitleaks.json')
+            if (Array.isArray(data)) {
+              for (const item of data) {
+                console.error(
+                  `${item.File}:${item.StartLine}:${item.StartColumn || ''} ${
+                    item.Description
+                  } ${item.Name}`
+                )
+              }
+            } else {
+              console.error('Expected a JSON array, got:', typeof data)
+            }
+          }
+          process.exit(result.status)
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name:  ${{ inputs.name || 'artifact' }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found || 'warn' }}
+        retention-days: ${{ inputs.retention-days || 0 }}
+        compression-level: ${{ inputs.compression-level || 6 }}
+        overwrite: ${{ inputs.overwrite || false }}
+        include-hidden-files: ${{ inputs.include-hidden-files || false }}

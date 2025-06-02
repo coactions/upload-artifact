@@ -1,0 +1,8 @@
+version: 2
+  - package-ecosystem: npm
+    schedule:
+      interval: weekly
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: daily
