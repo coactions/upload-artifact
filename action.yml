@@ -1,4 +1,7 @@
 name: 'Upload a Build Artifact (secured)'
+branding:
+  icon: arrow-up-circle
+  color: blue
 description: 'Upload a build artifact if gitleaks secure scan is passing.'
 author: 'Sorin Sbarnea'
 inputs:
