@@ -78,7 +78,10 @@ runs:
 
     - name: Install gitleaks (macos)
       if: runner.os == 'macOS'
-      run: command -v gitleaks 2>&1 >/dev/null || brew install gitleaks
+      run: |
+        command -v gitleaks 2>&1 >/dev/null || {
+          brew update && brew install gitleaks
+        }
       shell: bash
 
     - name: Install gitleaks (windows)
@@ -109,7 +112,7 @@ runs:
             .map(line => line.trim())
             .filter(line => line.length > 0)
           const cwd = process.cwd()
-          const result = spawnSync('gitleaks', ['dir', '-v', '--redact=100', '--no-banner', ...inputPaths], {
+          const result = spawnSync('gitleaks', ['dir', '-v', '--redact=100', '--no-banner', '--max-archive-depth=2', ...inputPaths], {
             stdio: 'inherit',
             encoding: 'utf-8'
           })
