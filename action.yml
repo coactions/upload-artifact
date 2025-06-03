@@ -99,6 +99,8 @@ runs:
     - name: Secrets Scanning
       uses: actions/github-script@v7
       with:
+        # -v is needed for gitleaks or otherwise it will not mention enough
+        # information in the output to allow user to fix the issue.
         script: |
           const {spawnSync} = require('child_process')
           const rawInput = process.env.INPUT_PATH || process.cwd()
@@ -107,7 +109,7 @@ runs:
             .map(line => line.trim())
             .filter(line => line.length > 0)
           const cwd = process.cwd()
-          const result = spawnSync('gitleaks', ['dir', '--report-format=json', `--report-path=${cwd}/gitleaks.json`, '--redact=100', '--no-banner', ...inputPaths], {
+          const result = spawnSync('gitleaks', ['dir', '-v', '--redact=100', '--no-banner', ...inputPaths], {
             stdio: 'inherit',
             encoding: 'utf-8'
           })
@@ -115,20 +117,6 @@ runs:
           if (result.error) {
             console.error('Failed to run gitleaks:', result.error.message)
             process.exit(1)
-          }
-          if (result.status == 1) {
-            const data = require('./gitleaks.json')
-            if (Array.isArray(data)) {
-              for (const item of data) {
-                console.error(
-                  `${item.File}:${item.StartLine}:${item.StartColumn || ''} ${
-                    item.Description
-                  } ${item.Name}`
-                )
-              }
-            } else {
-              console.error('Expected a JSON array, got:', typeof data)
-            }
           }
           process.exit(result.status)
 
