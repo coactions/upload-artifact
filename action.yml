@@ -105,15 +105,21 @@ runs:
         # -v is needed for gitleaks or otherwise it will not mention enough
         # information in the output to allow user to fix the issue.
         script: |
+          const glob_it = require('glob');
           const {spawnSync} = require('child_process')
-          const rawInput = process.env.INPUT_PATH || process.cwd()
-          const inputPaths = rawInput
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-          const cwd = process.cwd()
-          const result = spawnSync('gitleaks', ['dir', '-v', '--redact=100', '--no-banner', '--max-archive-depth=2', ...inputPaths], {
+          let paths = `${{ inputs.path }}`.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+          if (process.platform === 'win32') {
+            console.log(`Trying to explain glob path arguments under Windows: ${paths.join(' ')}`)
+            paths = paths.flatMap(pattern => glob_it.sync(pattern))
+          }
+          if (paths.length === 0) {
+            console.error('Failed because the path patterns were not able to match any file.')
+          }
+          const args = ['dir', '-v', '--redact=100', '--no-banner', '--max-archive-depth=2', ...paths]
+          console.info(`Running: gitleaks ${args.join(' ')}`)
+          const result = spawnSync('gitleaks', args, {
             stdio: 'inherit',
+            shell: true,
             encoding: 'utf-8'
           })
 
