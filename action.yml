@@ -76,6 +76,12 @@ runs:
       with:
         node-version: 20
 
+    - name: npm install
+      shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+      run: |
+        cd ${{ github.action_path }}
+        npm ci
+
     - name: Install gitleaks (macos)
       if: runner.os == 'macOS'
       run: |
