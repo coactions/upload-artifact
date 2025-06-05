@@ -111,7 +111,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" ]]; then
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.platform }}/gitleaks_${{ steps.gitleaks.outputs.version }}_linux_${{ steps.gitleaks.outputs.platform }}.tar.gz"
+          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.version }}/gitleaks_${{ steps.gitleaks.outputs.version }}_linux_${{ steps.gitleaks.outputs.platform }}.tar.gz"
           echo "Download Gitleaks ${{ steps.gitleaks.outputs.version }} for ${{ steps.gitleaks.outputs.platform }} from ${DOWNLOAD_URL}"
           curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C /usr/local/bin
         fi
