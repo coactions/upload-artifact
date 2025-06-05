@@ -80,6 +80,7 @@ runs:
         arch="$(uname)_$(uname -m)"
         platform=$(echo $arch | tr '[:upper:]' '[:lower:]' )
         platform="${platform//aarch64/arm64}"
+        platform="${platform//x86_64/x64}"
         echo "platform=$platform" >> $GITHUB_OUTPUT
         echo "version=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')" >> $GITHUB_OUTPUT
 
