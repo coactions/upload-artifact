@@ -79,6 +79,7 @@ runs:
         set -euo pipefail
         arch="$(uname)_$(uname -m)"
         platform=$(echo $arch | tr '[:upper:]' '[:lower:]' )
+        platform="${platform//aarch64/arm64}"
         echo "platform=$platform" >> $GITHUB_OUTPUT
         echo "version=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')" >> $GITHUB_OUTPUT
 
@@ -111,7 +112,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" ]]; then
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.version }}/gitleaks_${{ steps.gitleaks.outputs.version }}_linux_${{ steps.gitleaks.outputs.platform }}.tar.gz"
+          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.version }}/gitleaks_${{ steps.gitleaks.outputs.version }}_${{ steps.gitleaks.outputs.platform }}.tar.gz"
           echo "Download Gitleaks ${{ steps.gitleaks.outputs.version }} for ${{ steps.gitleaks.outputs.platform }} from ${DOWNLOAD_URL}"
           curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C /usr/local/bin
         fi
