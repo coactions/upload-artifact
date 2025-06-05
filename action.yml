@@ -124,9 +124,10 @@ runs:
         IFS=$'\n' read -r -d '' -a INPUT_PATH < <(printf '%s\0' "${{ inputs.path }}")
         RESULT=0
         for path in "${INPUT_PATH[@]}"; do
-          if compgen -G "$path" >/dev/null; then
-            gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $path || RESULT=$?
-          fi
+          shopt -s nullglob
+          for file in $path; do
+            gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $file || RESULT=$?
+          done
         done
         exit $RESULT
       shell: bash
