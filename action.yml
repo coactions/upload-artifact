@@ -73,13 +73,14 @@ runs:
 
     - name: Detect latest gitleaks version
       if: runner.os == 'Linux'
+      id: gitleaks
       shell: bash
       run: |
         set -euo pipefail
         arch="$(uname)_$(uname -m)"
         platform=$(echo $arch | tr '[:upper:]' '[:lower:]' )
-        echo "PLATFORM=$platform" >> $GITHUB_ENV
-        echo "GITLEAKS_VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')" >> $GITHUB_ENV
+        echo "platform=$platform" >> $GITHUB_OUTPUT
+        echo "version=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')" >> $GITHUB_OUTPUT
 
     - name: Install gitleaks (macos)
       if: runner.os == 'macOS'
@@ -102,7 +103,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: /usr/local/bin/gitleaks
-        key: gitleaks-${{ env.PLATFORM }}-${{ env.GITLEAKS_VERSION }}
+        key: gitleaks-${{ steps.gitleaks.outputs.platform }}-${{ steps.gitleaks.outputs.version }}
 
     - name: Install gitleaks (linux)
       if: runner.os == 'Linux'
@@ -110,21 +111,28 @@ runs:
       run: |
         set -euo pipefail
         if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" ]]; then
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ env.GITLEAKS_VERSION }}/gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz"
-          echo "Download Gitleaks ${{ env.GITLEAKS_VERSION }} for ${{ env.PLATFORM }} from ${DOWNLOAD_URL}"
+          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.platform }}/gitleaks_${{ steps.gitleaks.outputs.version }}_linux_${{ steps.gitleaks.outputs.platform }}.tar.gz"
+          echo "Download Gitleaks ${{ steps.gitleaks.outputs.version }} for ${{ steps.gitleaks.outputs.platform }} from ${DOWNLOAD_URL}"
           curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C /usr/local/bin
         fi
         chmod +x /usr/local/bin/gitleaks
 
     - name: Run gitleaks
+      # gitleaks does not support multiple paths https://github.com/gitleaks/gitleaks/issues/1888
       run: |
         set -e
         IFS=$'\n' read -r -d '' -a INPUT_PATH < <(printf '%s\0' "${{ inputs.path }}")
-        gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 ${INPUT_PATH[@]}
-      # ^ do not quote the array expansion as we want to allow bash to expand the globs
+        RESULT=0
+        for path in "${INPUT_PATH[@]}"; do
+          if compgen -G "$path" >/dev/null; then
+            gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $path || RESULT=$?
+          fi
+        done
+        exit $RESULT
       shell: bash
 
-    - uses: actions/upload-artifact@v4
+    - name: Upload safe artifact using original actions/upload-artifact
+      uses: actions/upload-artifact@v4
       with:
         name:  ${{ inputs.name || 'artifact' }}
         path: ${{ inputs.path }}
