@@ -128,7 +128,9 @@ runs:
         for path in "${INPUT_PATH[@]}"; do
           shopt -s nullglob
           for file in $path; do
-            gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $file || RESULT=$?
+            if [ -e $file ]; then
+              gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $file || RESULT=$?
+            fi
           done
         done
         exit $RESULT
