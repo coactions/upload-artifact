@@ -104,20 +104,25 @@ runs:
       id: cache_gitleaks
       uses: actions/cache@v4
       with:
-        path: /usr/local/bin/gitleaks
+        path: |
+          /usr/local/bin/gitleaks
+          ~/.local/bin/gitleaks
         key: gitleaks-${{ steps.gitleaks.outputs.platform }}-${{ steps.gitleaks.outputs.version }}
 
     - name: Install gitleaks (linux)
       if: runner.os == 'Linux'
       shell: bash
+      # prefer user bin path if in PATH to avoid sudo requirements as this case could also happen under WSL
       run: |
         set -euo pipefail
-        if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" ]]; then
+        prefix=~/.local/bin
+        if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" || ! -f $prefix/gitleaks ]]; then
           DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.version }}/gitleaks_${{ steps.gitleaks.outputs.version }}_${{ steps.gitleaks.outputs.platform }}.tar.gz"
           echo "Download Gitleaks ${{ steps.gitleaks.outputs.version }} for ${{ steps.gitleaks.outputs.platform }} from ${DOWNLOAD_URL}"
-          curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C /usr/local/bin
+          mkdir -p $prefix >/dev/null
+          curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C $prefix gitleaks
         fi
-        chmod +x /usr/local/bin/gitleaks
+        chmod +x $prefix/gitleaks
 
     - name: Run gitleaks
       # gitleaks does not support multiple paths https://github.com/gitleaks/gitleaks/issues/1888
@@ -125,11 +130,12 @@ runs:
         set -e
         IFS=$'\n' read -r -d '' -a INPUT_PATH < <(printf '%s\0' "${{ inputs.path }}")
         RESULT=0
+        gitleaks=$(command -v gitleaks) || gitleaks=~/.local/bin/gitleaks
         for path in "${INPUT_PATH[@]}"; do
           shopt -s nullglob
           for file in $path; do
             if [ -e $file ]; then
-              gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $file || RESULT=$?
+              $gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $file || RESULT=$?
             fi
           done
         done
