@@ -81,8 +81,9 @@ runs:
         platform=$(echo $arch | tr '[:upper:]' '[:lower:]' )
         platform="${platform//aarch64/arm64}"
         platform="${platform//x86_64/x64}"
+        version_tag="$(curl --retry 5 -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r .name)"
         echo "platform=$platform" >> $GITHUB_OUTPUT
-        echo "version=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')" >> $GITHUB_OUTPUT
+        echo "version=${version_tag#v}" >> $GITHUB_OUTPUT
 
     - name: Install gitleaks (macos)
       if: runner.os == 'macOS'
