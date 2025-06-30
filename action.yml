@@ -91,8 +91,9 @@ runs:
                 break
             fi
             attempt=$((attempt + 1))
-            echo "::warning::Attempt $attempt failed to fetch version, retrying in 60 seconds. stdout: ${version_tag}" >&2
-            sleep 60
+            delay=$((10 + attempt * 10))
+            echo "::warning::Attempt $attempt failed to fetch version, retrying in $delay seconds. stdout: ${version_tag}" >&2
+            sleep $delay
         done
 
         if [[ -z "$version" ]]; then
