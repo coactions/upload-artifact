@@ -55,6 +55,7 @@ outputs:
       A unique identifier for the artifact that was just uploaded. Empty if the artifact upload failed.
 
       This ID can be used as input to other APIs to download, delete or get more information about an artifact: https://docs.github.com/en/rest/actions/artifacts
+    value: '${{ steps.upload-artifact.outputs.artifact-id }}'
   artifact-url:
     description: >
       A download URL for the artifact that was just uploaded. Empty if the artifact upload failed.
@@ -64,9 +65,11 @@ outputs:
 
       This URL will be valid for as long as the artifact exists and the workflow run and repository exists. Once an artifact has expired this URL will no longer work.
       Common uses cases for such a download URL can be adding download links to artifacts in descriptions or comments on pull requests or issues.
+    value: '${{ steps.upload-artifact.outputs.artifact-url }}'
   artifact-digest:
     description: >
       SHA-256 digest for the artifact that was just uploaded. Empty if the artifact upload failed.
+    value: '${{ steps.upload-artifact.outputs.artifact-digest }}'
 runs:
   using: "composite"
   steps:
@@ -163,6 +166,7 @@ runs:
 
     - name: Upload safe artifact using original actions/upload-artifact
       uses: actions/upload-artifact@v4
+      id: upload-artifact
       with:
         name:  ${{ inputs.name || 'artifact' }}
         path: ${{ inputs.path }}
