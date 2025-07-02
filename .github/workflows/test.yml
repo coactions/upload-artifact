@@ -13,6 +13,9 @@ on:
 jobs:
   build:
     name: Build
+    env:
+      ACTIONS_RUNNER_DEBUG: "true"
+      ACTIONS_STEP_DEBUG: "true"
 
     strategy:
       matrix:
@@ -22,29 +25,23 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
 
     steps:
+
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup Node 20
-      uses: actions/setup-node@v4
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@v6
       with:
-        node-version: 20.x
-        cache: 'npm'
+        version: "latest"
+        enable-cache: true
 
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Compile
-      run: npm run build
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/pre-commit/
+        key: pre-commit-${{ runner.os }}-${{ hashFiles('**/.pre-commit-config.yaml') }}
 
     - name: Lint
-      run: npm run lint
-
-    - name: Format
-      run: npm run format-check
-
-    - name: Test
-      run: npm run test
+      run: uvx --with pre-commit-uv pre-commit run --all-files
 
     # Test end-to-end by uploading a few artifacts and then downloading them
     - name: Create artifact files
@@ -234,80 +231,3 @@ jobs:
             Write-Error "File contents of downloaded artifact are incorrect"
         }
       shell: pwsh
-  merge:
-    name: Merge
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    # Merge all artifacts from previous jobs
-    - name: Merge all artifacts in run
-      uses: ./merge/
-      with:
-        # our matrix produces artifacts with the same file, this prevents "stomping" on each other, also makes it
-        # easier to identify each of the merged artifacts
-        separate-directories: true
-    - name: 'Download merged artifacts'
-      uses: actions/download-artifact@v4
-      with:
-        name: merged-artifacts
-        path: all-merged-artifacts
-    - name: 'Check merged artifact has directories for each artifact'
-      run: |
-        $artifacts = @(
-          "Artifact-A-ubuntu-latest",
-          "Artifact-A-macos-latest",
-          "Artifact-A-windows-latest",
-          "Artifact-Wildcard-ubuntu-latest",
-          "Artifact-Wildcard-macos-latest",
-          "Artifact-Wildcard-windows-latest",
-          "Multi-Path-Artifact-ubuntu-latest",
-          "Multi-Path-Artifact-macos-latest",
-          "Multi-Path-Artifact-windows-latest"
-        )
-
-        foreach ($artifact in $artifacts) {
-          $path = "all-merged-artifacts/$artifact"
-          if (!(Test-Path $path)) {
-            Write-Error "$path does not exist."
-          }
-        }
-      shell: pwsh
-
-    # Merge Artifact-A-* from previous jobs
-    - name: Merge all Artifact-A
-      uses: ./merge/
-      with:
-        name: Merged-Artifact-As
-        pattern: 'Artifact-A-*'
-        separate-directories: true
-
-    # Download merged artifacts and verify the correctness of the content
-    - name: 'Download merged artifacts'
-      uses: actions/download-artifact@v4
-      with:
-        name: Merged-Artifact-As
-        path: merged-artifact-a
-
-    - name: 'Verify merged artifacts'
-      run: |
-        $files = @(
-          "merged-artifact-a/Artifact-A-ubuntu-latest/file1.txt",
-          "merged-artifact-a/Artifact-A-macos-latest/file1.txt",
-          "merged-artifact-a/Artifact-A-windows-latest/file1.txt"
-        )
-
-        foreach ($file in $files) {
-          if (!(Test-Path $file)) {
-            Write-Error "$file does not exist."
-          }
-
-          if (!((Get-Content $file) -ceq "This file has changed")) {
-            Write-Error "$file has incorrect content."
-          }
-        }
-      shell: pwsh
-

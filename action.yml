@@ -1,3 +1,4 @@
+# cspell: ignore shopt euxo
 name: 'Upload a Build Artifact (secured)'
 branding:
   icon: arrow-up-circle
@@ -74,94 +75,50 @@ runs:
   using: "composite"
   steps:
 
-    - name: Detect latest gitleaks version
-      if: runner.os == 'Linux'
-      id: gitleaks
-      shell: bash
-      run: |
-        set -euo pipefail
-        arch="$(uname)_$(uname -m)"
-        platform=$(echo $arch | tr '[:upper:]' '[:lower:]' )
-        platform="${platform//aarch64/arm64}"
-        platform="${platform//x86_64/x64}"
-
-        max_attempts=5
-        attempt=0
-        while [[ $attempt -lt $max_attempts ]]; do
-            version_tag="$(curl --retry 5 -s -f https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r .name || true)"
-            version="${version_tag#v}"
-            if [[ -n "$version" ]]; then
-                break
-            fi
-            attempt=$((attempt + 1))
-            delay=$((10 + attempt * 10))
-            echo "::warning::Attempt $attempt failed to fetch version, retrying in $delay seconds. stdout: ${version_tag}" >&2
-            sleep $delay
-        done
-
-        if [[ -z "$version" ]]; then
-            echo "::error::Failed to fetch Gitleaks version after $max_attempts attempts." >&2
-            exit 1
-        fi
-        echo "platform=$platform" >> $GITHUB_OUTPUT
-        echo "version=${version}" >> $GITHUB_OUTPUT
-
-    - name: Install gitleaks (macos)
-      if: runner.os == 'macOS'
-      run: |
-        command -v gitleaks 2>&1 >/dev/null || {
-          brew update && brew install gitleaks
-        }
-      shell: bash
-
-    - name: Install gitleaks (windows)
-      if: runner.os == 'Windows'
-      run: |
-        choco install gitleaks -y
-        gitleaks --version
-      shell: cmd
-
-    - name: Cache gitleaks archive
+    - name: Cache gitleaks
       if: runner.os == 'Linux'
       id: cache_gitleaks
       uses: actions/cache@v4
       with:
         path: |
           /usr/local/bin/gitleaks
+          /opt/homebrew/bin/gitleaks
           ~/.local/bin/gitleaks
         key: gitleaks-${{ steps.gitleaks.outputs.platform }}-${{ steps.gitleaks.outputs.version }}
 
-    - name: Install gitleaks (linux)
-      if: runner.os == 'Linux'
-      shell: bash
-      # prefer user bin path if in PATH to avoid sudo requirements as this case could also happen under WSL
+
+    - name: Set executable bit on cached binary
+      if: steps.cache_gitleaks.outputs.cache-hit == 'true'
       run: |
         set -euo pipefail
         prefix=~/.local/bin
-        if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" || ! -f $prefix/gitleaks ]]; then
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.version }}/gitleaks_${{ steps.gitleaks.outputs.version }}_${{ steps.gitleaks.outputs.platform }}.tar.gz"
-          echo "Download Gitleaks ${{ steps.gitleaks.outputs.version }} for ${{ steps.gitleaks.outputs.platform }} from ${DOWNLOAD_URL}"
-          mkdir -p $prefix >/dev/null
-          curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C $prefix gitleaks
-        fi
         chmod +x $prefix/gitleaks
+        gitleaks --version
+      shell: bash
+
+    - name: Ensure gitleaks
+      if: steps.cache_gitleaks.outputs.cache-hit != 'true'
+      # && runner.os == 'Linux'
+      id: gitleaks
+      shell: bash
+      run: ${GITHUB_ACTION_PATH}/scripts/ensure-gitleaks.sh
+      env:
+        DEBUG: ${{ runner.debug == '1' }}
+        GH_TOKEN: ${{ github.token }}
+
+    # - name: Install gitleaks (windows)
+    #   if: steps.cache_gitleaks.outputs.cache-hit != 'true' && runner.os == 'Windows'
+    #   run: |
+    #     choco install gitleaks -y
+    #     gitleaks --version
+    #   shell: cmd
 
     - name: Run gitleaks
       # gitleaks does not support multiple paths https://github.com/gitleaks/gitleaks/issues/1888
-      run: |
-        set -e
-        IFS=$'\n' read -r -d '' -a INPUT_PATH < <(printf '%s\0' "${{ inputs.path }}")
-        RESULT=0
-        gitleaks=$(command -v gitleaks) || gitleaks=~/.local/bin/gitleaks
-        for path in "${INPUT_PATH[@]}"; do
-          shopt -s nullglob
-          for file in $path; do
-            if [ -e $file ]; then
-              $gitleaks dir -v --redact=100 --no-banner --max-archive-depth=2 $file || RESULT=$?
-            fi
-          done
-        done
-        exit $RESULT
+      run: ${GITHUB_ACTION_PATH}/scripts/run-gitleaks.sh
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        DEBUG: ${{ runner.debug == '1' }}
       shell: bash
 
     - name: Upload safe artifact using original actions/upload-artifact

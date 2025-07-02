@@ -7,15 +7,13 @@ ci:
     chore: auto fixes from pre-commit.com hooks
 
     for more information, see https://pre-commit.ci
-  skip:
-    - eslint
 repos:
   - repo: meta
     hooks:
       - id: check-useless-excludes
   - repo: https://github.com/pycontribs/mirrors-prettier
     # keep it before markdownlint and eslint
-    rev: "v3.5.3"
+    rev: "v3.6.2"
     hooks:
       - id: prettier
         always_run: true
@@ -26,21 +24,7 @@ repos:
     rev: v1.7.7
     hooks:
       - id: actionlint
-  - repo: local
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
     hooks:
-      - id: eslint
-        name: eslint
-        entry: npm
-        language: system
-        args:
-          - exec
-          - --
-          - eslint
-          - --color
-          - --fix
-          - --cache
-          - --max-warnings
-          - "0"
-        pass_filenames: false
-        files: \.m?[jt]sx?$ # *.js, *.jsx, *.ts and *.tsx
-        types: [file]
+      - id: shellcheck
