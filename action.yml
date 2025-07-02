@@ -74,8 +74,28 @@ runs:
   using: "composite"
   steps:
 
-    - name: Detect latest gitleaks version
+    - name: Cache gitleaks
       if: runner.os == 'Linux'
+      id: cache_gitleaks
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/local/bin/gitleaks
+          ~/.local/bin/gitleaks
+        key: gitleaks-${{ steps.gitleaks.outputs.platform }}-${{ steps.gitleaks.outputs.version }}
+
+
+    - name: Set executable bit on cached binary
+      if: steps.cache_gitleaks.outputs.cache-hit == 'true'
+      run: |
+        set -euo pipefail
+        prefix=~/.local/bin
+        chmod +x $prefix/gitleaks
+        gitleaks --version
+      shell: bash
+
+    - name: Install gitleaks (linux)
+      if: steps.cache_gitleaks.outputs.cache-hit != 'true' && runner.os == 'Linux'
       id: gitleaks
       shell: bash
       run: |
@@ -85,7 +105,7 @@ runs:
         platform="${platform//aarch64/arm64}"
         platform="${platform//x86_64/x64}"
 
-        max_attempts=5
+        max_attempts=10
         attempt=0
         while [[ $attempt -lt $max_attempts ]]; do
             version_tag="$(curl --retry 5 -s -f https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r .name || true)"
@@ -107,7 +127,7 @@ runs:
         echo "version=${version}" >> $GITHUB_OUTPUT
 
     - name: Install gitleaks (macos)
-      if: runner.os == 'macOS'
+      if: steps.cache_gitleaks.outputs.cache-hit != 'true' && runner.os == 'macOS'
       run: |
         command -v gitleaks 2>&1 >/dev/null || {
           brew update && brew install gitleaks
@@ -115,36 +135,11 @@ runs:
       shell: bash
 
     - name: Install gitleaks (windows)
-      if: runner.os == 'Windows'
+      if: steps.cache_gitleaks.outputs.cache-hit != 'true' && runner.os == 'Windows'
       run: |
         choco install gitleaks -y
         gitleaks --version
       shell: cmd
-
-    - name: Cache gitleaks archive
-      if: runner.os == 'Linux'
-      id: cache_gitleaks
-      uses: actions/cache@v4
-      with:
-        path: |
-          /usr/local/bin/gitleaks
-          ~/.local/bin/gitleaks
-        key: gitleaks-${{ steps.gitleaks.outputs.platform }}-${{ steps.gitleaks.outputs.version }}
-
-    - name: Install gitleaks (linux)
-      if: runner.os == 'Linux'
-      shell: bash
-      # prefer user bin path if in PATH to avoid sudo requirements as this case could also happen under WSL
-      run: |
-        set -euo pipefail
-        prefix=~/.local/bin
-        if [[ "${{ steps.cache_gitleaks.outputs.cache-hit }}" != "true" || ! -f $prefix/gitleaks ]]; then
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${{ steps.gitleaks.outputs.version }}/gitleaks_${{ steps.gitleaks.outputs.version }}_${{ steps.gitleaks.outputs.platform }}.tar.gz"
-          echo "Download Gitleaks ${{ steps.gitleaks.outputs.version }} for ${{ steps.gitleaks.outputs.platform }} from ${DOWNLOAD_URL}"
-          mkdir -p $prefix >/dev/null
-          curl -fsSL "$DOWNLOAD_URL" | tar xzf - -C $prefix gitleaks
-        fi
-        chmod +x $prefix/gitleaks
 
     - name: Run gitleaks
       # gitleaks does not support multiple paths https://github.com/gitleaks/gitleaks/issues/1888
