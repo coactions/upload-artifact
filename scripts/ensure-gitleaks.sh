@@ -3,6 +3,8 @@
 set -euo pipefail
 
 DEBUG="${1:-false}"
+MAX_ATTEMPTS=10
+
 
 if [[ "${DEBUG}" = "true" ]]
 then
@@ -29,7 +31,7 @@ else
 fi
 
 if [[ -n "$gitleaks_cmd" ]]; then
-    version="$(gitleaks --version || true)"
+    version="$(gitleaks --version 2>/dev/null || true)"
     if [[ -n "$version" ]]; then
         echo "::notice::Detected ${gitleaks_cmd} version ${version} on ${platform}."
         exit 0
@@ -40,9 +42,8 @@ else
         gitleaks_cmd=$(command -v gitleaks)
         version="$(gitleaks --version || true)"
     elif [[ "$OSTYPE" == "linux"* || "$OSTYPE" == "msys"* ]]; then
-        max_attempts=10
         attempt=0
-        while [[ $attempt -lt $max_attempts ]]; do
+        while [[ $attempt -lt $MAX_ATTEMPTS ]]; do
             # Not using curl+jq because jq is not available on Windows github runners
             version_tag="$(gh release view --repo gitleaks/gitleaks --json tagName -q .tagName)"
             version="${version_tag#v}"
@@ -77,7 +78,7 @@ else
 fi
 
 if [[ -z "${version:-}" ]]; then
-    echo "::error::Failed to fetch Gitleaks version after $max_attempts attempts."
+    echo "::error::Failed to fetch Gitleaks version after $MAX_ATTEMPTS attempts."
     exit 3
 fi
 {
