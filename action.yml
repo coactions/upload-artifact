@@ -84,7 +84,7 @@ runs:
           /usr/local/bin/gitleaks
           /opt/homebrew/bin/gitleaks
           ~/.local/bin/gitleaks
-        key: gitleaks-${{ steps.gitleaks.outputs.platform }}-${{ steps.gitleaks.outputs.version }}
+        key: gitleaks-${{ runner.os }}-${{ runner.arch }}-${{ steps.gitleaks.outputs.version }}
 
 
     - name: Set executable bit on cached binary
