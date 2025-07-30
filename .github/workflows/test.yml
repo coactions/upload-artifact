@@ -12,35 +12,81 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: ${{ matrix.name || matrix.runs-on }}
     env:
-      ACTIONS_RUNNER_DEBUG: "true"
-      ACTIONS_STEP_DEBUG: "true"
-
+      # ACTIONS_RUNNER_DEBUG: "true"
+      # ACTIONS_STEP_DEBUG: "true"
+      # https://docs.github.com/en/actions/learn-github-actions/environment-variables
+      # https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
+      WSLENV: HOSTNAME:CI:FORCE_COLOR:GITHUB_ACTION:GITHUB_ACTION_PATH/p:GITHUB_ACTION_REPOSITORY:GITHUB_WORKFLOW:GITHUB_WORKSPACE/p:GITHUB_PATH/p:GITHUB_ENV/p:VIRTUAL_ENV/p:SKIP_PODMAN:SKIP_DOCKER:NODE_OPTIONS
+      # We define a hostname because otherwise the variable might not always be accessible on runners.
+      HOSTNAME: gha
+    defaults:
+      run:
+        shell: ${{ contains(matrix.name, 'wsl') && 'wsl-bash {0}' || 'bash' }}
     strategy:
       matrix:
-        runs-on: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+        # runs-on: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+        include:
+          - runs-on: windows-2025
+            name: windows-2025
+          - runs-on: windows-2025
+            name: windows-2025-wsl
+          - runs-on: ubuntu-24.04
+            name: ubuntu-24.04
+          - runs-on: ubuntu-24.04-arm
+            name: ubuntu-24.04-arm
+          - runs-on: macos-15
+            name: macos-15
       fail-fast: false
 
     runs-on: ${{ matrix.runs-on }}
 
     steps:
+      # https://github.com/marketplace/actions/setup-wsl
+    - name: Activate WSL
+      if: contains(matrix.name, 'wsl') && (matrix.runs-on || '') != 'self-hosted'
+      uses: Vampire/setup-wsl@v6.0.0
+      with:
+        distribution: Ubuntu-24.04
+        set-as-default: "true"
+        # '-i' seems to be the only option that loads .bashrc file that we need
+        # https://github.com/Vampire/setup-wsl/discussions/54
+        wsl-shell-command: "bash -i -eo pipefail"
+        # https://github.com/MicrosoftDocs/WSL/blob/main/WSL/wsl-config.md#L159
+        wsl-conf: |
+          [automount]
+          enabled = true
+          root = /
+          options = "metadata,umask=077"
+          [boot]
+          command=/etc/init.d/dbus start
+          [interop]
+          enabled = false
+          appendWindowsPath = false
+          [network]
+          hostname = wsl
+        additional-packages: curl
 
     - name: Checkout
       uses: actions/checkout@v4
 
     - name: Install the latest version of uv
+      if: ${{ runner.os != 'Windows' }}
       uses: astral-sh/setup-uv@v6
       with:
         version: "latest"
+        ignore-nothing-to-cache: true
         enable-cache: true
 
     - uses: actions/cache@v4
+      if: ${{ runner.os != 'Windows' }}
       with:
         path: ~/.cache/pre-commit/
         key: pre-commit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/.pre-commit-config.yaml') }}
 
     - name: Lint
+      if: ${{ runner.os != 'Windows' }}
       # See https://github.com/rhysd/actionlint/issues/555
       run: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && 'SKIP=actionlint ' || '' }}uvx --with pre-commit-uv pre-commit run --all-files
 
@@ -53,39 +99,44 @@ jobs:
         mkdir -p symlink/
         echo "Lorem ipsum dolor sit amet" > path/to/dir-1/file1.txt
         echo "Hello world from file #2" > path/to/dir-2/file2.txt
+      # shell: bash
+
+    - name: Create artifact files (symlinks)
+      if: ${{ !contains(matrix.name, 'wsl') }}
+      run: |
         echo "Hello from a symlinked file" > symlink/original.txt
         ln -s "$(pwd)/symlink/original.txt" symlink/abs.txt
         ln -s original.txt symlink/rel.txt
-      shell: bash
 
     # Upload a single file artifact
     - name: 'Upload artifact #1'
       uses: ./
       with:
-        name: 'Artifact-A-${{ matrix.runs-on }}'
+        name: 'Artifact-A-${{ matrix.name }}'
         path: path/to/dir-1/file1.txt
 
     # Upload using a wildcard pattern
     - name: 'Upload artifact #2'
       uses: ./
       with:
-        name: 'Artifact-Wildcard-${{ matrix.runs-on }}'
+        name: 'Artifact-Wildcard-${{ matrix.name }}'
         path: path/**/dir*/
 
     # Upload a multi-path artifact
     - name: 'Upload artifact #3'
       uses: ./
       with:
-        name: 'Multi-Path-Artifact-${{ matrix.runs-on }}'
+        name: 'Multi-Path-Artifact-${{ matrix.name }}'
         path: |
           path/to/dir-1/*
           path/to/dir-[23]/*
           !path/to/dir-3/*.txt
 
     - name: 'Upload symlinked artifact'
+      if: ${{ !contains(matrix.name, 'wsl') }}
       uses: ./
       with:
-        name: 'Symlinked-Artifact-${{ matrix.runs-on }}'
+        name: 'Symlinked-Artifact-${{ matrix.name }}'
         path: |
           symlink/abs.txt
           symlink/rel.txt
@@ -94,7 +145,7 @@ jobs:
     - name: 'Download artifact #1'
       uses: actions/download-artifact@v4
       with:
-        name: 'Artifact-A-${{ matrix.runs-on }}'
+        name: 'Artifact-A-${{ matrix.name }}'
         path: some/new/path
 
     - name: 'Verify Artifact #1'
@@ -114,7 +165,7 @@ jobs:
     - name: 'Download artifact #2'
       uses: actions/download-artifact@v4
       with:
-        name: 'Artifact-Wildcard-${{ matrix.runs-on }}'
+        name: 'Artifact-Wildcard-${{ matrix.name }}'
         path: some/other/path
 
     - name: 'Verify Artifact #2'
@@ -135,7 +186,7 @@ jobs:
     - name: 'Download artifact #3'
       uses: actions/download-artifact@v4
       with:
-        name: 'Artifact-Wildcard-${{ matrix.runs-on }}'
+        name: 'Artifact-Wildcard-${{ matrix.name }}'
         path: verify-artifact-3
 
     - name: 'Verify Artifact #3'
@@ -156,7 +207,7 @@ jobs:
     - name: 'Download artifact #4'
       uses: actions/download-artifact@v4
       with:
-        name: 'Multi-Path-Artifact-${{ matrix.runs-on }}'
+        name: 'Multi-Path-Artifact-${{ matrix.name }}'
         path: multi/artifact
 
     - name: 'Verify Artifact #4'
@@ -174,12 +225,14 @@ jobs:
       shell: pwsh
 
     - name: 'Download symlinked artifact'
+      if: ${{ !contains(matrix.name, 'wsl') }}
       uses: actions/download-artifact@v4
       with:
-        name: 'Symlinked-Artifact-${{ matrix.runs-on }}'
+        name: 'Symlinked-Artifact-${{ matrix.name }}'
         path: from/symlink
 
     - name: 'Verify symlinked artifact'
+      if: ${{ !contains(matrix.name, 'wsl') }}
       run: |
         $abs = "from/symlink/abs.txt"
         if(!(Test-Path -path $abs))
@@ -209,7 +262,7 @@ jobs:
     - name: 'Overwrite artifact #1'
       uses: ./
       with:
-        name: 'Artifact-A-${{ matrix.runs-on }}'
+        name: 'Artifact-A-${{ matrix.name }}'
         path: path/to/dir-1/file1.txt
         overwrite: true
 
@@ -217,7 +270,7 @@ jobs:
     - name: 'Download artifact #1 again'
       uses: actions/download-artifact@v4
       with:
-        name: 'Artifact-A-${{ matrix.runs-on }}'
+        name: 'Artifact-A-${{ matrix.name }}'
         path: overwrite/some/new/path
 
     - name: 'Verify Artifact #1 again'

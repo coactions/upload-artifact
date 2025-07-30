@@ -36,7 +36,7 @@ fi
 if [[ -n "$gitleaks_cmd" ]]; then
     version="$($gitleaks_cmd --version 2>/dev/null || true)"
     if [[ -n "$version" ]]; then
-        echo "::notice::Detected ${gitleaks_cmd} version ${version} on ${platform}."
+        echo "::debug::Detected ${gitleaks_cmd} version ${version} on ${platform}."
         exit 0
     else
         echo "::warning::Found gitleaks at ${gitleaks_cmd} but version check failed. Will attempt to reinstall."
@@ -64,7 +64,7 @@ if [[ -z "$gitleaks_cmd" ]]; then
             fi
             return 1
         }
-        
+
         # Function to fetch version using curl as fallback
         fetch_version_with_curl() {
             local version_tag
@@ -131,4 +131,4 @@ fi
     echo "platform=$platform";
     echo "version=${version}";
 } >> "${GITHUB_OUTPUT:-/dev/stdout}"
-echo "::notice::Detected ${gitleaks_cmd} version ${version} on ${platform}."
+echo "::debug::Detected ${gitleaks_cmd} version ${version} on ${platform}."
