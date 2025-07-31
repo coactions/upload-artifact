@@ -84,11 +84,13 @@ runs:
           /usr/local/bin/gitleaks
           /opt/homebrew/bin/gitleaks
           ~/.local/bin/gitleaks
-        key: gitleaks-${{ runner.os }}-${{ runner.arch }}-${{ steps.gitleaks.outputs.version }}
-
+        key: gitleaks-${{ runner.os }}-${{ runner.arch }}
 
     - name: Set executable bit on cached binary
       if: steps.cache_gitleaks.outputs.cache-hit == 'true'
+      id: set-executable-bit
+      # with wsl even if cache is restored we might not have the executable restored
+      continue-on-error: true
       run: |
         set -euo pipefail
         prefix=~/.local/bin
@@ -97,7 +99,7 @@ runs:
       shell: bash
 
     - name: Ensure gitleaks
-      if: steps.cache_gitleaks.outputs.cache-hit != 'true'
+      if: steps.cache_gitleaks.outputs.cache-hit != 'true' || steps.set-executable-bit.outcome != 'success'
       # && runner.os == 'Linux'
       id: gitleaks
       shell: bash
@@ -105,13 +107,6 @@ runs:
       env:
         DEBUG: ${{ runner.debug == '1' }}
         GH_TOKEN: ${{ github.token }}
-
-    # - name: Install gitleaks (windows)
-    #   if: steps.cache_gitleaks.outputs.cache-hit != 'true' && runner.os == 'Windows'
-    #   run: |
-    #     choco install gitleaks -y
-    #     gitleaks --version
-    #   shell: cmd
 
     - name: Run gitleaks
       # gitleaks does not support multiple paths https://github.com/gitleaks/gitleaks/issues/1888

@@ -77,7 +77,6 @@ jobs:
       with:
         version: "latest"
         ignore-nothing-to-cache: true
-        enable-cache: true
 
     - uses: actions/cache@v4
       if: ${{ runner.os != 'Windows' }}
